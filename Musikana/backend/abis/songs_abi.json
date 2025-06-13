@@ -1,0 +1,276 @@
+[
+	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint32",
+				"name": "songId",
+				"type": "uint32"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "songName",
+				"type": "string"
+			}
+		],
+		"name": "SongCreated",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "song_name",
+				"type": "string"
+			},
+			{
+				"internalType": "string[]",
+				"name": "styles",
+				"type": "string[]"
+			},
+			{
+				"internalType": "string[]",
+				"name": "negativ_styels",
+				"type": "string[]"
+			},
+			{
+				"internalType": "string",
+				"name": "uri",
+				"type": "string"
+			},
+			{
+				"internalType": "uint32",
+				"name": "fan_nft_maxSupply",
+				"type": "uint32"
+			},
+			{
+				"internalType": "uint32",
+				"name": "copyright_nft_maxSupply",
+				"type": "uint32"
+			},
+			{
+				"internalType": "uint256",
+				"name": "copyright_nft_price",
+				"type": "uint256"
+			}
+		],
+		"name": "create_song",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "genreToSongIds",
+		"outputs": [
+			{
+				"internalType": "uint32",
+				"name": "",
+				"type": "uint32"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint32",
+				"name": "song_id",
+				"type": "uint32"
+			}
+		],
+		"name": "get_song",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "uint32",
+						"name": "song_id",
+						"type": "uint32"
+					},
+					{
+						"internalType": "string",
+						"name": "song_name",
+						"type": "string"
+					},
+					{
+						"internalType": "string[]",
+						"name": "styles",
+						"type": "string[]"
+					},
+					{
+						"internalType": "string[]",
+						"name": "negativ_styels",
+						"type": "string[]"
+					},
+					{
+						"internalType": "string",
+						"name": "uri",
+						"type": "string"
+					},
+					{
+						"internalType": "uint32",
+						"name": "fan_nft_maxSupply",
+						"type": "uint32"
+					},
+					{
+						"internalType": "uint32",
+						"name": "copyright_nft_maxSupply",
+						"type": "uint32"
+					},
+					{
+						"internalType": "uint256",
+						"name": "copyright_nft_price",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "owner_nft_contract",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "fan_nft_contract",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "copyright_nft_contract",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "owner",
+						"type": "address"
+					}
+				],
+				"internalType": "struct Songs.song",
+				"name": "",
+				"type": "tuple"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "genre",
+				"type": "string"
+			}
+		],
+		"name": "get_songs_by_genre",
+		"outputs": [
+			{
+				"internalType": "uint32[]",
+				"name": "",
+				"type": "uint32[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "next_song_id",
+		"outputs": [
+			{
+				"internalType": "uint32",
+				"name": "",
+				"type": "uint32"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint32",
+				"name": "",
+				"type": "uint32"
+			}
+		],
+		"name": "songs",
+		"outputs": [
+			{
+				"internalType": "uint32",
+				"name": "song_id",
+				"type": "uint32"
+			},
+			{
+				"internalType": "string",
+				"name": "song_name",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "uri",
+				"type": "string"
+			},
+			{
+				"internalType": "uint32",
+				"name": "fan_nft_maxSupply",
+				"type": "uint32"
+			},
+			{
+				"internalType": "uint32",
+				"name": "copyright_nft_maxSupply",
+				"type": "uint32"
+			},
+			{
+				"internalType": "uint256",
+				"name": "copyright_nft_price",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address",
+				"name": "owner_nft_contract",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "fan_nft_contract",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "copyright_nft_contract",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+]
