@@ -1,0 +1,839 @@
+openapi: 3.0.3
+info:
+  title: MUSIKANA
+  version: 1.0.0
+  description: API for interacting with Music NFTs and related services on the Ethereum Sepolia testnet, including wallet authentication, song generation, and fan area management.
+
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+
+paths:
+  /:
+    get:
+      summary: Simple health check endpoint
+      description: Returns a basic string to indicate the server is running.
+      responses:
+        '200':
+          description: Success
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: It works
+
+  /next_song_id:
+    get:
+      summary: Get the next available song ID from the smart contract
+      responses:
+        '200':
+          description: Returns an array containing the next available song ID.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: integer
+                  example: 5
+        '500':
+          $ref: '#/components/responses/BlockchainConnectionError'
+
+  /song/{song_id}:
+    get:
+      summary: Get song details by ID
+      parameters:
+        - name: song_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: The unique ID of the song to retrieve. Use -1 to get an empty object.
+      responses:
+        '200':
+          description: Song details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Song'
+        '500':
+          $ref: '#/components/responses/BlockchainConnectionError'
+
+  /songs/:
+    get:
+      summary: Get a list of songs within a range of IDs
+      parameters:
+        - name: firstID
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: The starting song ID (inclusive).
+        - name: lastID
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: The ending song ID (exclusive).
+      responses:
+        '200':
+          description: List of songs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Song'
+        '400':
+          description: Error if firstID is invalid relative to lastID or next_song_id.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '500':
+          $ref: '#/components/responses/BlockchainConnectionError'
+
+
+  /genre/{genre}:
+    get:
+      summary: Get songs by genre
+      parameters:
+        - name: genre
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The genre to filter songs by.
+      responses:
+        '200':
+          description: List of songs matching the genre
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Song'
+        '500':
+          $ref: '#/components/responses/BlockchainConnectionError'
+
+  /wallet/{owner}:
+    get:
+      summary: Get NFTs owned by a wallet, categorized by type
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+            format: ethereum-address
+          description: Wallet address of the owner.
+      responses:
+        '200':
+          description: List of NFTs grouped by type (Owner, Fan, Copyright). Contains deserialized song information if the NFT is linked to a song.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  OWNER_NFT:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Song'
+                  FAN_NFT:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Song'
+                  COPYRIGHT_NFT:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Song'
+                example:
+                  OWNER_NFT:
+                    - song_id: 1
+                      song_name: "My First Song"
+                      styles: "Pop, Rock"
+                      negative_styles: "Heavy Metal"
+                      uri: "ipfs://..."
+                      fan_nft_maxSupply: 1000
+                      copyright_nft_maxSupply: 10
+                      copyright_nft_price: "10000000000000000" # In Wei
+                      owner_nft_contract: "0x..."
+                      fan_nft_contract: "0x..."
+                      copyright_nft_contract: "0x..."
+                      owner: "0x..."
+                  FAN_NFT: []
+                  COPYRIGHT_NFT: []
+        '500':
+          description: Error during Moralis API call or blockchain interaction.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+
+  /api/nonce:
+    get:
+      summary: Get a nonce for wallet authentication
+      description: Generates a unique nonce required for wallet signature authentication during login.
+      parameters:
+        - name: address
+          in: query
+          required: true
+          schema:
+            type: string
+            format: ethereum-address
+          description: The Ethereum address requesting the nonce.
+      responses:
+        '200':
+          description: Successfully generated nonce.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NonceResponse'
+        '400':
+          description: Missing address parameter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/login:
+    post:
+      summary: Authenticate wallet signature using a nonce
+      description: Verifies the signature provided by the wallet for the previously issued nonce. If valid, returns a JWT access token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful login.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid request (e.g., no nonce for address, nonce expired, invalid signature format).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Signature verification failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /generate:
+    post:
+      summary: Request song generation using Suno API
+      description: Sends a prompt and style parameters to an external music generation API and returns a task ID. Requires JWT authentication.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateSongRequest'
+      responses:
+        '200':
+          description: Song generation request successful, task ID returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateSongResponse'
+        # Mapped custom error code 6969 to 400 Bad Request
+        '400':
+          description: Invalid request body, data parsing error, or error from external music generation API (e.g. input limits exceeded).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomErrorResponse'
+        '401':
+          description: Unauthorized (Invalid or missing JWT).
+
+  /suno/callback:
+    post:
+      summary: Webhook endpoint for Suno API callbacks
+      description: Receives the result of the song generation task from the external music API and stores it. **This endpoint is intended to be called by the Suno API, not directly by clients.**
+      # No security scheme as it's a webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SunoCallbackRequest'
+      responses:
+        '200':
+          description: Callback successfully received and processed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Callback empfangen
+        '400':
+          description: Invalid callback data (e.g., missing task_id).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error during callback processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /suno/{task_id}:
+    get:
+      summary: Retrieve stored Suno callback data for a task
+      description: Retrieves the song generation result previously received via the callback endpoint. 
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the song generation task.
+      responses:
+        '200':
+          description: Stored callback data found and returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SunoCallbackResponse' # This schema should match the structure Suno sends back
+        '404':
+          description: Task ID not found in stored callbacks.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error during data retrieval.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /create/fan/area:
+    post:
+      summary: Create a fan area for a song
+      description: Creates a new fan area entry in the database for a specific song. Requires JWT authentication and owner permission for the song.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFanAreaRequest'
+      responses:
+        '201':
+          description: Fan area successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateFanAreaResponse'
+        '400':
+          description: Invalid request (e.g., data parsing error, fan area already exists without force flag).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized (Invalid or missing JWT).
+        # Mapped custom error code 69 (no permission) to 403 Forbidden
+        '403':
+          description: User does not have owner permission for the song.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomErrorResponse'
+        '500':
+          description: Database insertion error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /update/fan/area:
+    post:
+      summary: Update elements within a song's fan area
+      description: Updates the remixs, chat, or music video sections of a song's fan area. Requires JWT authentication and owner permission for the song.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFanAreaRequest'
+      responses:
+        '200':
+          description: Update request processed. Indicates which fields were attempted and if they were successfully modified.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateFanAreaResponse'
+        '400':
+          description: Invalid request (e.g., data parsing error).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized (Invalid or missing JWT).
+        '404':
+          description: Song ID not found or fan area does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        # Mapped custom error code 69 (no permission) to 403 Forbidden
+        '403':
+          description: User does not have owner permission for the song.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomErrorResponse'
+
+  /get/fan/area/{song_id}:
+    get:
+      summary: Get a song's fan area details
+      description: Retrieves the full fan area object for a specific song. Requires JWT authentication and either owner or fan permission for the song.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: song_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: The ID of the song whose fan area is requested.
+      responses:
+        '200':
+          description: Fan area details retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FanArea' # Returns the full fan area document
+        '401':
+          description: Unauthorized (Invalid or missing JWT).
+        '404':
+          description: Fan area not found for the given song ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        # Mapped custom error code 69 (no permission) to 403 Forbidden
+        '403':
+          description: User does not have owner or fan permission for the song.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomErrorResponse'
+
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Authorization header using the Bearer scheme. 
+      Example: "Authorization: Bearer {token}"
+
+  responses:
+    BlockchainConnectionError:
+      description: Error connecting to the blockchain (Infura).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    Song:
+      type: object
+      properties:
+        song_id:
+          type: integer
+          description: The unique ID of the song on the blockchain.
+          example: 1
+        song_name:
+          type: string
+          description: The title of the song.
+          example: "Eternal Echoes"
+        styles:
+          type: string # Deserialize_song returns a string
+          description: Comma-separated musical styles.
+          example: "Ambient, Melodic Techno"
+        negative_styles:
+          type: string # Deserialize_song returns a string
+          description: Comma-separated negative musical styles to avoid.
+          example: "Harsh, Loud"
+        uri:
+          type: string
+          format: url
+          description: URI pointing to the actual audio file (e.g., IPFS link).
+          example: "ipfs://bafybeibxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        fan_nft_maxSupply:
+          type: integer
+          description: Maximum supply of Fan NFTs for this song.
+          example: 1000
+        copyright_nft_maxSupply:
+          type: integer
+          description: Maximum supply of Copyright NFTs for this song.
+          example: 10
+        copyright_nft_price:
+          type: string # Stored as string Wei in contract, or could be integer depending on handling
+          description: Price of a Copyright NFT in Wei.
+          example: "10000000000000000" # 0.01 ETH
+        owner_nft_contract:
+          type: string
+          format: ethereum-address
+          description: Address of the Owner NFT smart contract for this song.
+          example: "0xabcdef1234567890abcdef1234567890abcdef12"
+        fan_nft_contract:
+          type: string
+          format: ethereum-address
+          description: Address of the Fan NFT smart contract for this song.
+          example: "0xabcdef1234567890abcdef1234567890abcdef12"
+        copyright_nft_contract:
+          type: string
+          format: ethereum-address
+          description: Address of the Copyright NFT smart contract for this song.
+          example: "0xabcdef1234567890abcdef1234567890abcdef12"
+        owner:
+          type: string
+          format: ethereum-address
+          description: Ethereum address of the original song owner.
+          example: "0xabcdef1234567890abcdef1234567890abcdef12"
+
+    NonceResponse:
+      type: object
+      properties:
+        nonce:
+          type: string
+          description: A unique string nonce for signing.
+          example: "f9947484a8fd477c96585e339f1a5c88"
+
+    LoginRequest:
+      type: object
+      properties:
+        address:
+          type: string
+          format: ethereum-address
+          description: The Ethereum address signing the nonce.
+          example: "0xabcdef1234567890abcdef1234567890abcdef12"
+        signature:
+          type: string
+          description: The signature generated by the wallet for the nonce.
+          example: "0x..."
+      required:
+        - address
+        - signature
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Indicates if authentication was successful.
+          example: true
+        access_token:
+          type: string
+          description: The JWT access token to use for authenticated endpoints.
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+
+    GenerateSongRequest:
+      type: object
+      properties:
+        song_name:
+          type: string
+          description: The title for the generated song (max 80 chars).
+          example: "AI Generated Dreamscape"
+          maxLength: 80
+        prompt:
+          type: string
+          description: Text prompt describing the desired song (lyrics, mood, etc.) (max 400 chars).
+          example: "Upbeat electronic track with a driving bassline and ethereal synths."
+          maxLength: 400
+        styles:
+          oneOf: # Allows either a string or an array of strings
+            - type: string
+              example: "Electronic, House"
+            - type: array
+              items:
+                type: string
+              example: ["Electronic", "House"]
+          description: Musical styles for the song (max 200 chars when joined).
+          maxLength: 200 # Applies if joined into a string
+        negative_styles:
+          oneOf: # Allows either a string or an array of strings
+            - type: string
+              example: "Country, Jazz"
+            - type: array
+              items:
+                type: string
+              example: ["Country", "Jazz"]
+          description: Musical styles to avoid (max 200 chars when joined).
+          maxLength: 200 # Applies if joined into a string
+      required:
+        - song_name
+        - prompt
+        - styles
+        - negative_styles
+
+    GenerateSongResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: Status code (200 for success).
+          example: 200
+        task_id:
+          type: string
+          description: The ID of the song generation task. Use this to query the callback result.
+          example: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+      required:
+        - code
+        - task_id
+
+    SunoCallbackRequest:
+      type: object
+      description: Structure of the callback data received from the Suno API.
+      properties:
+        data:
+          type: object
+          properties:
+            task_id:
+              type: string
+              description: The ID of the generation task.
+              example: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            # Add other properties based on actual Suno callback payload if known
+            audio_url:
+              type: string
+              format: url
+              description: URL of the generated audio.
+              example: "http://example.com/audio/generated_song.mp3"
+            metadata:
+              type: object # Example, structure might vary
+              description: Other metadata provided by Suno.
+      required:
+        - data
+        # Add other top-level fields required by the callback
+
+    SunoCallbackResponse:
+      type: object
+      description: The full callback response body stored in the database. This mirrors the structure sent by the Suno API.
+      additionalProperties: true
+      properties:
+        task_id:
+          type: string
+          example: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+        response:
+           type: object
+           properties:
+              data:
+                 type: object
+                 properties:
+                   task_id:
+                     type: string
+                   audio_url:
+                      type: string
+                      format: url
+                   # ... other fields from Suno payload ...
+           # ... other fields from the initial callback structure ...
+
+
+    FanArea:
+      type: object
+      description: Represents the fan area data stored in MongoDB for a song.
+      properties:
+        song_id:
+          type: integer
+          description: The ID of the song this fan area belongs to.
+          example: 1
+        remixs:
+          type: array
+          description: List of remix URLs or objects.
+          items:
+            type: object # Or string if just URLs are stored
+            properties:
+              url:
+                type: string
+                format: url
+              title:
+                type: string
+          example:
+            - url: "ipfs://..."
+              title: "My Remix"
+        chat:
+          type: array
+          description: List of chat messages or objects.
+          items:
+            type: object # Or string if just messages are stored
+            properties:
+              sender:
+                type: string
+                format: ethereum-address
+              message:
+                type: string
+              timestamp:
+                type: string # Or integer (Unix timestamp)
+          example:
+            - sender: "0x..."
+              message: "Great song!"
+              timestamp: "2023-10-27T10:00:00Z"
+        mv:
+          oneOf:
+            - type: string
+              format: url
+            - type: null # Changed from 'null' to null
+          description: URL of the music video, or null.
+          example: "https://youtube.com/watch?v=..."
+      required:
+        - song_id
+        - remixs
+        - chat
+        - mv # Technically it can be null, but the field exists
+
+
+    CreateFanAreaRequest:
+      type: object
+      properties:
+        song_id:
+          type: integer
+          description: The ID of the song for which to create the fan area.
+          example: 1
+        force_to_create:
+          type: boolean
+          description: If true, recreate the fan area even if it already exists.
+          example: false
+      required:
+        - song_id
+        - force_to_create
+
+    CreateFanAreaResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ "Success", "Error" ]
+          example: "Success"
+        msg:
+          type: string
+          description: A descriptive message about the operation result.
+          example: "Fan-Bereich für Song 1 wurde neu erstellt."
+        inserted_id:
+          type: string
+          description: The MongoDB document ID if successful.
+          example: "653bb7b1a1b2c3d4e5f67890"
+      required:
+        - status
+        - msg
+
+    UpdateFanAreaRequest:
+      type: object
+      description: Request body to update specific fields in a song's fan area. At least one field (remixs, chat, or mv) should be provided.
+      properties:
+        song_id:
+          type: integer
+          description: The ID of the song whose fan area is being updated.
+          example: 1
+        remixs:
+          type: array
+          description: The new list of remix URLs or objects. **Replaces** the existing list.
+          items:
+             type: object # Match the item structure in FanArea schema
+             properties:
+                url:
+                  type: string
+                  format: url
+                title:
+                  type: string
+          example:
+            - url: "ipfs://..."
+              title: "My Remix"
+        chat:
+          type: array
+          description: The new list of chat messages or objects. **Replaces** the existing list.
+          items:
+             type: object # Match the item structure in FanArea schema
+             properties:
+               sender:
+                 type: string
+                 format: ethereum-address
+               message:
+                 type: string
+               timestamp:
+                 type: string
+          example:
+            - sender: "0x..."
+              message: "Great song!"
+              timestamp: "2023-10-27T10:00:00Z"
+        mv:
+          oneOf:
+            - type: string
+              format: url
+            - type: null # Changed from 'null' to null
+          description: The new music video URL, or null to remove it. **Replaces** the existing value.
+          example: "https://youtube.com/watch?v=..."
+      required:
+        - song_id
+      # Note: remixs, chat, mv are optional, but at least one should typically be sent.
+      # OpenAPI doesn't have a simple 'at least one of these properties' constraint.
+
+    UpdateFanAreaResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ "success", "error" ]
+          example: "success"
+        updates:
+          type: object
+          description: Reports the outcome of each attempted update (true if modified, false if not modified or field not provided).
+          properties:
+            remixs:
+              type: boolean
+              description: Was the 'remixs' field successfully updated? (true if provided and modified)
+              example: true
+            chat:
+              type: boolean
+              description: Was the 'chat' field successfully updated? (true if provided and modified)
+              example: false # e.g., if client sent the same array that was already there
+            mv:
+              type: boolean
+              description: Was the 'mv' field successfully updated? (true if provided and modified)
+              example: true
+          additionalProperties: false # Only these specific keys are expected
+      required:
+        - status
+        - updates
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: A descriptive error message.
+          example: "Address is required"
+
+    CustomErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: A custom application-specific error code (e.g., 69 for permission, 6969 for Suno error).
+          example: 69
+        msg:
+          type: string
+          description: A descriptive error message related to the custom code.
+          example: "Error no permession"
